@@ -1,6 +1,5 @@
 package net.neganote.gtutilities.common.tools.recipe;
 
-import com.gregtechceu.gtceu.api.GTCEuAPI;
 import com.gregtechceu.gtceu.api.GTValues;
 import com.gregtechceu.gtceu.api.capability.GTCapabilityHelper;
 import com.gregtechceu.gtceu.api.data.chemical.material.Material;
@@ -49,7 +48,7 @@ public final class UtilToolRecipes {
         initTierMaps();
         registerPowerUnitRecipes(provider);
 
-        for (Material material : GTCEuAPI.materialManager.getRegisteredMaterials()) {
+        for (Material material : com.gregtechceu.gtceu.api.registry.GTRegistries.MATERIALS.values()) {
             UtilToolRecipeHelper.run(provider, material);
         }
     }

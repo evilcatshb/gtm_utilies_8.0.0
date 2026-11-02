@@ -1,7 +1,6 @@
 package net.neganote.gtutilities.integration.ae2.gridservice;
 
 import com.gregtechceu.gtceu.api.machine.feature.IMachineFeature;
-import com.gregtechceu.gtceu.config.ConfigHolder;
 import com.gregtechceu.gtceu.integration.ae2.slot.IConfigurableSlot;
 import com.gregtechceu.gtceu.integration.ae2.slot.IConfigurableSlotList;
 
@@ -35,9 +34,7 @@ public interface ITagStockingPart extends IMachineFeature {
 
     default boolean isTagStockSyncDue() {
         int interval = getTicksPerCycle();
-        if (interval <= 0) {
-            interval = ConfigHolder.INSTANCE.compat.ae2.updateIntervals;
-        }
+        if (interval <= 0) {}
         if (interval <= 0) {
             interval = 1;
         }
@@ -57,8 +54,7 @@ public interface ITagStockingPart extends IMachineFeature {
             slot.setStock(stack);
         }
         slots.clearInventory(i);
-        self().markDirty();
-        self().getHolder().self().setChanged();
+        self().markAsChanged();
     }
 
     default void markTagRefresh() {

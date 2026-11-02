@@ -104,8 +104,6 @@ public class UtilItems {
         return registerBasicItem(id, id);
     }
 
-    public static void init() {}
-
     // Copied from GTItems
     public static <T extends IComponentItem> NonNullConsumer<T> attach(IItemComponent... components) {
         return item -> item.attachComponents(components);

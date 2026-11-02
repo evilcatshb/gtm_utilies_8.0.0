@@ -2,14 +2,13 @@ package net.neganote.gtutilities.integration.ae2.machine.trait;
 
 import com.gregtechceu.gtceu.api.capability.recipe.*;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.trait.IRecipeHandlerTrait;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableRecipeHandlerTrait;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeHandlerGroupDistinctness;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeHandlerList;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableRecipeHandlerTrait;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.IRecipeHandlerTrait;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerGroupDistinctness;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerList;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.recipe.ingredient.FluidIngredient;
-
-import com.lowdragmc.lowdraglib.syncdata.ISubscription;
+import com.gregtechceu.gtceu.utils.ISubscription;
 
 import net.minecraft.world.item.crafting.Ingredient;
 import net.neganote.gtutilities.integration.ae2.machine.ExpandedPatternBufferPartMachine;
@@ -71,7 +70,6 @@ public final class ExpandedProxySlotRecipeHandler {
 
         public void setBuffer(ExpandedPatternBufferPartMachine buffer,
                               ExpandedInternalSlotRecipeHandler.SlotRHL slotRHL) {
-            circuit.setProxy(buffer.getCircuitInventory());
             sharedItem.setProxy(buffer.getShareInventory());
             sharedFluid.setProxy(buffer.getShareTank());
             slotItem.setProxy(slotRHL.getItemRecipeHandler());
@@ -105,7 +103,7 @@ public final class ExpandedProxySlotRecipeHandler {
         private final boolean isDistinct = true;
 
         public ProxyItemRecipeHandler(MetaMachine machine) {
-            super(machine);
+            super();
         }
 
         public void setProxy(IRecipeHandlerTrait<Ingredient> proxy) {
@@ -155,7 +153,7 @@ public final class ExpandedProxySlotRecipeHandler {
         private final boolean isDistinct = true;
 
         public ProxyFluidRecipeHandler(MetaMachine machine) {
-            super(machine);
+            super();
         }
 
         public void setProxy(IRecipeHandlerTrait<FluidIngredient> proxy) {

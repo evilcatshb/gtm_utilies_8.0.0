@@ -1,35 +1,18 @@
 package net.neganote.gtutilities.integration.ae2.machine;
 
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
-import com.gregtechceu.gtceu.common.item.IntCircuitBehaviour;
-import com.gregtechceu.gtceu.config.ConfigHolder;
-import com.gregtechceu.gtceu.integration.ae2.gui.widget.AEItemConfigWidget;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
+import com.gregtechceu.gtceu.common.item.behavior.IntCircuitBehaviour;
 import com.gregtechceu.gtceu.integration.ae2.machine.MEStockingBusPartMachine;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEItemList;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEItemSlot;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAESlot;
 
-import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import com.lowdragmc.lowdraglib.utils.Position;
-import com.lowdragmc.lowdraglib.utils.Size;
-
 import net.minecraft.MethodsReturnNonnullByDefault;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.BlockHitResult;
-import net.neganote.gtutilities.common.gui.widgets.SimpleScrollbarWidget;
 import net.neganote.gtutilities.config.UtilConfig;
 
 import appeng.api.config.Actionable;
@@ -41,12 +24,8 @@ import appeng.api.storage.MEStorage;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -55,33 +34,19 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @MethodsReturnNonnullByDefault
 public class MEEnlargedStockingInputBusPartMachine extends MEStockingBusPartMachine {
 
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            MEEnlargedStockingInputBusPartMachine.class, MEStockingBusPartMachine.MANAGED_FIELD_HOLDER);
-
     private static final int SLOTS_PER_ROW = 8;
     private static final int TOTAL_ROWS = Math.min(64, UtilConfig.INSTANCE.features.enlargedStockingSizeRows);
     private static final int TOTAL_SLOTS = SLOTS_PER_ROW * TOTAL_ROWS;
 
-    @Persisted
-    @DescSynced
+    @SaveField
+    @SyncToClient
     private boolean enlargedAutoPull = false;
 
     private Predicate<GenericStack> enlargedAutoPullTest = $ -> false;
 
-    public MEEnlargedStockingInputBusPartMachine(IMachineBlockEntity holder, Object... args) {
-        super(holder, args);
+    public MEEnlargedStockingInputBusPartMachine(BlockEntityCreationInfo holder) {
+        super(holder);
         super.setAutoPull(false);
-    }
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @Override
-    protected NotifiableItemStackHandler createInventory(Object... args) {
-        this.aeItemHandler = new ExportOnlyAEStockingItemList(this, TOTAL_SLOTS);
-        return this.aeItemHandler;
     }
 
     @Override
@@ -106,26 +71,10 @@ public class MEEnlargedStockingInputBusPartMachine extends MEStockingBusPartMach
     }
 
     @Override
-    protected InteractionResult onScrewdriverClick(Player playerIn, InteractionHand hand, Direction gridSide,
-                                                   BlockHitResult hitResult) {
-        if (!isRemote()) {
-            setAutoPull(!isAutoPull());
-            if (isAutoPull()) {
-                playerIn.sendSystemMessage(Component.translatable("gtceu.machine.me.stocking_auto_pull_enabled"));
-            } else {
-                playerIn.sendSystemMessage(Component.translatable("gtceu.machine.me.stocking_auto_pull_disabled"));
-            }
-        }
-        return InteractionResult.sidedSuccess(isRemote());
-    }
-
-    @Override
     public void autoIO() {
         super.autoIO();
 
-        if (getTicksPerCycle() == 0) {
-            setTicksPerCycle(ConfigHolder.INSTANCE.compat.ae2.updateIntervals);
-        }
+        if (getTicksPerCycle() == 0) {}
 
         if (getOffsetTimer() % (long) getTicksPerCycle() == 0L) {
             if (!isRemote() && enlargedAutoPull) {
@@ -211,7 +160,7 @@ public class MEEnlargedStockingInputBusPartMachine extends MEStockingBusPartMach
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("AutoPull", true);
         tag.putByte("GhostCircuit",
-                (byte) IntCircuitBehaviour.getCircuitConfiguration(circuitInventory.getStackInSlot(0)));
+                (byte) IntCircuitBehaviour.getCircuitConfiguration(getCircuitSlot().storage.getStackInSlot(0)));
         return tag;
     }
 
@@ -219,123 +168,17 @@ public class MEEnlargedStockingInputBusPartMachine extends MEStockingBusPartMach
     protected void readConfigFromTag(CompoundTag tag) {
         if (tag.getBoolean("AutoPull")) {
             setAutoPull(true);
-            circuitInventory.setStackInSlot(0, IntCircuitBehaviour.stack(tag.getByte("GhostCircuit")));
+            getCircuitSlot().storage.setStackInSlot(0, IntCircuitBehaviour.stack(tag.getByte("GhostCircuit")));
             return;
         }
         setAutoPull(false);
         super.readConfigFromTag(tag);
     }
 
-    @Override
-    public Widget createUIWidget() {
-        int visibleRows = 4;
-        int rowHeight = 40;
-        int startX = 10;
-        int startY = 20;
-        int scrollbarX = 158;
-
-        final List<AEItemConfigWidget> allRowWidgets = new ArrayList<>();
-
-        Consumer<Integer> onScrollChanged = (currentScroll) -> {
-            for (int i = 0; i < allRowWidgets.size(); i++) {
-                AEItemConfigWidget row = allRowWidgets.get(i);
-                int relativeIndex = i - currentScroll;
-                if (relativeIndex >= 0 && relativeIndex < visibleRows) {
-                    row.setVisible(true);
-                    row.setSelfPosition(startX, startY + (relativeIndex * rowHeight));
-                } else {
-                    row.setVisible(false);
-                }
-            }
-        };
-
-        SimpleScrollbarWidget scrollbar = new SimpleScrollbarWidget(
-                scrollbarX,
-                startY,
-                visibleRows * rowHeight - 4,
-                onScrollChanged);
-
-        scrollbar.setRange(0, TOTAL_ROWS - visibleRows, 1);
-
-        WidgetGroup group = new WidgetGroup(new Position(0, 0), new Size(178, 200)) {
-
-            @Override
-            public boolean mouseWheelMove(double mouseX, double mouseY, double wheelDelta) {
-                if (super.mouseWheelMove(mouseX, mouseY, wheelDelta)) {
-                    return true;
-                }
-                if (isMouseOver(getPositionX(), getPositionY(), getSizeWidth(), getSizeHeight(), mouseX, mouseY)) {
-                    return scrollbar.mouseWheelMove(mouseX, mouseY, wheelDelta);
-                }
-                return false;
-            }
-        };
-
-        group.addWidget(new LabelWidget(5, 5, () -> this.isOnline ?
-                "gtceu.gui.me_network.online" :
-                "gtceu.gui.me_network.offline"));
-
-        for (int i = 0; i < TOTAL_ROWS; i++) {
-            final int currentRowIndex = i;
-            final int startSlotIndex = currentRowIndex * SLOTS_PER_ROW;
-
-            AtomicInteger localSlotCounter = new AtomicInteger(0);
-            ExportOnlyAEItemList viewHandler = new ExportOnlyAEItemList(
-                    this,
-                    SLOTS_PER_ROW,
-                    () -> {
-                        int globalSlotIndex = startSlotIndex + localSlotCounter.getAndIncrement();
-                        if (globalSlotIndex < this.aeItemHandler.getSlots()) {
-                            return this.aeItemHandler.getInventory()[globalSlotIndex];
-                        }
-                        return null;
-                    }) {
-
-                @Override
-                public boolean isStocking() {
-                    return true;
-                }
-
-                @Override
-                public boolean isAutoPull() {
-                    return MEEnlargedStockingInputBusPartMachine.this.isAutoPull();
-                }
-            };
-
-            var root = (ExportOnlyAEStockingItemList) MEEnlargedStockingInputBusPartMachine.this.aeItemHandler;
-            Runnable rootCb = root::fireContentsChanged;
-
-            for (int s = 0; s < SLOTS_PER_ROW; s++) {
-                int global = startSlotIndex + s;
-                if (global >= 0 && global < MEEnlargedStockingInputBusPartMachine.this.aeItemHandler.getSlots()) {
-                    MEEnlargedStockingInputBusPartMachine.this.aeItemHandler.getInventory()[global]
-                            .setOnContentsChanged(rootCb);
-                }
-            }
-
-            AEItemConfigWidget rowWidget = new AEItemConfigWidget(startX, startY, viewHandler) {
-
-                @Override
-                public boolean hasStackInConfig(GenericStack stack) {
-                    return MEEnlargedStockingInputBusPartMachine.this.aeItemHandler.hasStackInConfig(stack, true);
-                }
-            };
-
-            rowWidget.setVisible(false);
-            allRowWidgets.add(rowWidget);
-            group.addWidget(rowWidget);
-        }
-
-        group.addWidget(scrollbar);
-        onScrollChanged.accept(0);
-
-        return group;
-    }
-
     private class ExportOnlyAEStockingItemList extends ExportOnlyAEItemList {
 
         public ExportOnlyAEStockingItemList(MetaMachine holder, int slots) {
-            super(holder, slots, ExportOnlyAEStockingItemSlot::new);
+            super(slots, ExportOnlyAEStockingItemSlot::new);
         }
 
         @Override

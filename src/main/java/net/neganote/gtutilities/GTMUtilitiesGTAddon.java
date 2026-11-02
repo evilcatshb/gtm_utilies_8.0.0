@@ -45,7 +45,7 @@ public class GTMUtilitiesGTAddon implements IGTAddon {
      * GregitasRecipeCapabilities.PRESSURE, false);
      * public static final ContentJS<Double> PRESSURE_OUT = new ContentJS<>(NumberComponent.ANY_DOUBLE,
      * GregitasRecipeCapabilities.PRESSURE, true);
-     * 
+     *
      * @Override
      * public void registerRecipeKeys(KJSRecipeKeyEvent event) {
      * event.registerKey(CustomRecipeCapabilities.PRESSURE, Pair.of(PRESSURE_IN, PRESSURE_OUT));

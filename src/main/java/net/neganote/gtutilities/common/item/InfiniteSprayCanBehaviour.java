@@ -296,7 +296,7 @@ public class InfiniteSprayCanBehaviour implements IInteractionItem, IAddInformat
 
         else if (first instanceof IPipeNode pipe) {
             var collected = BreadthFirstBlockSearch.conditionalSearch(IPipeNode.class, pipe,
-                    first.getLevel(), IPipeNode::getPipePos,
+                    first.getLevel(), n -> n.self().getBlockPos(),
                     gtPipePredicate, limit, limit * 6);
             paintPaintables(collected, color);
             return true;

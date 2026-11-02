@@ -39,6 +39,4 @@ public class UtilToolItems {
                     .register();
         }
     }
-
-    public static void init() {}
 }

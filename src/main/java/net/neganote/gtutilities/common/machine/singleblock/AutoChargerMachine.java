@@ -1,35 +1,23 @@
 package net.neganote.gtutilities.common.machine.singleblock;
 
 import com.gregtechceu.gtceu.api.GTValues;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.capability.*;
 import com.gregtechceu.gtceu.api.capability.compat.FeCompat;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
-import com.gregtechceu.gtceu.api.gui.GuiTextures;
-import com.gregtechceu.gtceu.api.gui.fancy.ConfiguratorPanel;
-import com.gregtechceu.gtceu.api.gui.fancy.IFancyConfiguratorButton;
-import com.gregtechceu.gtceu.api.gui.widget.SlotWidget;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.TieredEnergyMachine;
-import com.gregtechceu.gtceu.api.machine.feature.IAutoOutputItem;
-import com.gregtechceu.gtceu.api.machine.feature.IFancyUIMachine;
-import com.gregtechceu.gtceu.api.machine.feature.IMachineLife;
 import com.gregtechceu.gtceu.api.machine.property.GTMachineModelProperties;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableEnergyContainer;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
-import com.gregtechceu.gtceu.common.machine.electric.ChargerMachine;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableEnergyContainer;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableItemStackHandler;
+import com.gregtechceu.gtceu.api.sync_system.annotations.RerenderOnChanged;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
+import com.gregtechceu.gtceu.common.machine.electric.BatteryBufferMachine;
+import com.gregtechceu.gtceu.common.mui.GTGuiTextures;
 import com.gregtechceu.gtceu.config.ConfigHolder;
 import com.gregtechceu.gtceu.utils.GTTransferUtils;
 import com.gregtechceu.gtceu.utils.GTUtil;
-
-import com.lowdragmc.lowdraglib.gui.texture.GuiTextureGroup;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.annotation.RequireRerender;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import com.lowdragmc.lowdraglib.utils.Position;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.Direction;
@@ -37,6 +25,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.ItemHandlerHelper;
 
+import brachy.modularui.factory.PosGuiData;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.layout.Flow;
+import brachy.modularui.widgets.slot.ItemSlot;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -47,84 +41,64 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
 public class AutoChargerMachine extends TieredEnergyMachine
-                                implements IFancyUIMachine, IMachineLife, IAutoOutputItem {
-
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(AutoChargerMachine.class,
-            TieredEnergyMachine.MANAGED_FIELD_HOLDER);
+                                implements com.gregtechceu.gtceu.api.machine.feature.IMuiMachine {
 
     public static final long AMPS_PER_ITEM = 4L;
     private final int inventorySize;
 
-    @Persisted
+    @SaveField
     private boolean isWorkingEnabled = true;
 
-    @Persisted
+    @SaveField
     protected final NotifiableItemStackHandler chargerInventory;
 
-    @DescSynced
-    @RequireRerender
-    private ChargerMachine.State state = ChargerMachine.State.IDLE;
+    @SyncToClient
+    @RerenderOnChanged
+    private BatteryBufferMachine.State state = BatteryBufferMachine.State.IDLE;
 
-    @Persisted
-    @DescSynced
-    @RequireRerender
+    @SaveField
+    @SyncToClient
+    @RerenderOnChanged
     protected Direction outputFacingItems;
 
-    @Persisted
-    @DescSynced
-    @RequireRerender
+    @SaveField
+    @SyncToClient
+    @RerenderOnChanged
     protected boolean autoOutputItems;
 
-    @Persisted
+    @SaveField
     protected boolean allowInputFromOutputSideItems;
 
     @Nullable
     protected TickableSubscription autoOutputSubs;
 
-    public AutoChargerMachine(IMachineBlockEntity holder, int tier, int inventorySize) {
-        super(holder, tier, inventorySize);
+    public AutoChargerMachine(BlockEntityCreationInfo holder, int tier, int inventorySize) {
+        super(holder, tier, new EnergyBatteryTrait(tier, inventorySize));
 
-        this.chargerInventory = new NotifiableItemStackHandler(this, inventorySize, IO.BOTH);
+        this.chargerInventory = new NotifiableItemStackHandler(inventorySize, IO.BOTH, IO.BOTH);
         this.chargerInventory.setFilter(stack -> GTCapabilityHelper.getElectricItem(stack) != null ||
                 (ConfigHolder.INSTANCE.compat.energy.nativeEUToFE &&
                         GTCapabilityHelper.getForgeEnergyItem(stack) != null));
         this.inventorySize = inventorySize;
-
         this.outputFacingItems = getFrontFacing().getOpposite();
-    }
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @Override
-    protected NotifiableEnergyContainer createEnergyContainer(Object... args) {
-        return new EnergyBatteryTrait((int) args[0]);
-    }
-
-    private void changeState(ChargerMachine.State newState) {
-        if (this.state != newState) {
-            this.state = newState;
-            setRenderState(getRenderState().setValue(GTMachineModelProperties.CHARGER_STATE, newState));
-        }
     }
 
     @Override
     public void onLoad() {
         super.onLoad();
-        if (!isRemote()) {
-            updateAutoOutputSubscription();
-            this.chargerInventory.addChangedListener(this::updateAutoOutputSubscription);
-        }
+        if (!isRemote()) updateAutoOutputSubscription();
     }
 
-    public void onMachineRemoved() {
-        this.clearInventory(this.chargerInventory);
+    @Override
+    public void onMachineDestroyed() {
+        for (int i = 0; i < chargerInventory.getSlots(); i++) {
+            chargerInventory.setStackInSlot(i, ItemStack.EMPTY);
+        }
+        super.onMachineDestroyed();
     }
 
     protected void updateAutoOutputSubscription() {
-        if (isAutoOutputItems() && !chargerInventory.isEmpty()) {
+        if (autoOutputItems && !chargerInventory.isEmpty()) {
             autoOutputSubs = subscribeServerTick(autoOutputSubs, this::autoOutput);
         } else if (autoOutputSubs != null) {
             autoOutputSubs.unsubscribe();
@@ -133,148 +107,106 @@ public class AutoChargerMachine extends TieredEnergyMachine
     }
 
     protected void autoOutput() {
-        if (getOffsetTimer() % 5 == 0 && isAutoOutputItems()) {
+        if (getOffsetTimer() % 5 == 0 && autoOutputItems) {
             boolean exported = false;
             for (int i = 0; i < chargerInventory.getSlots(); i++) {
                 ItemStack stack = chargerInventory.getStackInSlot(i);
-                if (stack.isEmpty()) continue;
-
-                if (isFullyCharged(stack)) {
-                    final int slotIndex = i;
-                    var handlerCap = GTTransferUtils.getItemHandler(getLevel(), getPos().relative(outputFacingItems),
-                            outputFacingItems.getOpposite());
-
-                    handlerCap.ifPresent(handler -> {
-                        ItemStack remainder = ItemHandlerHelper.insertItemStacked(handler, stack, false);
-                        chargerInventory.setStackInSlot(slotIndex, remainder);
-                    });
-
-                    if (chargerInventory.getStackInSlot(slotIndex).getCount() != stack.getCount()) {
-                        exported = true;
-                    }
-                }
+                if (stack.isEmpty() || !isFullyCharged(stack)) continue;
+                final int slotIndex = i;
+                var handlerCap = GTTransferUtils.getItemHandler(getLevel(),
+                        self().getBlockPos().relative(outputFacingItems),
+                        outputFacingItems.getOpposite());
+                handlerCap.ifPresent(handler -> {
+                    ItemStack remainder = ItemHandlerHelper.insertItemStacked(handler, stack, false);
+                    chargerInventory.setStackInSlot(slotIndex, remainder);
+                });
+                if (chargerInventory.getStackInSlot(slotIndex).getCount() != stack.getCount()) exported = true;
             }
-            if (exported) markDirty();
+            if (exported) self().setChanged();
         }
-    }
-
-    @Override
-    public void attachConfigurators(ConfiguratorPanel panel) {
-        IFancyUIMachine.super.attachConfigurators(panel);
-
-        panel.attachConfigurators(new IFancyConfiguratorButton.Toggle(
-                new GuiTextureGroup(
-                        GuiTextures.TOGGLE_BUTTON_BACK.getSubTexture(0, 0, 1, 0.5f),
-                        GuiTextures.IO_CONFIG_ITEM_MODES_BUTTON.getSubTexture(0, 1f / 3f, 1, 1f / 3f)),
-                new GuiTextureGroup(
-                        GuiTextures.TOGGLE_BUTTON_BACK.getSubTexture(0, 0.5f, 1, 0.5f),
-                        GuiTextures.IO_CONFIG_ITEM_MODES_BUTTON.getSubTexture(0, 2f / 3f, 1, 1f / 3f)),
-                this::isAutoOutputItems,
-                (cd, next) -> setAutoOutputItems(next)));
     }
 
     private boolean isFullyCharged(ItemStack stack) {
         var elec = GTCapabilityHelper.getElectricItem(stack);
         if (elec != null) {
-            if (elec.getCharge() >= elec.getMaxCharge()) {
-                return true;
-            }
+            return elec.getCharge() >= elec.getMaxCharge();
         }
         var fe = GTCapabilityHelper.getForgeEnergyItem(stack);
         if (fe != null) {
-            if (fe.getEnergyStored() >= fe.getMaxEnergyStored()) {
-                return true;
-            }
+            return fe.getEnergyStored() >= fe.getMaxEnergyStored();
         }
         return false;
     }
 
-    @Override
     public boolean isAutoOutputItems() {
         return this.autoOutputItems;
     }
 
-    @Override
     public void setAutoOutputItems(boolean allow) {
         this.autoOutputItems = allow;
         updateAutoOutputSubscription();
     }
 
-    @Override
     public boolean isAllowInputFromOutputSideItems() {
         return this.allowInputFromOutputSideItems;
     }
 
-    @Override
     public void setAllowInputFromOutputSideItems(boolean b) {
         this.allowInputFromOutputSideItems = b;
     }
 
-    @Override
     public Direction getOutputFacingItems() {
         return outputFacingItems;
     }
 
-    @Override
     public void setOutputFacingItems(@Nullable Direction direction) {
         this.outputFacingItems = direction == null ? getFrontFacing().getOpposite() : direction;
         updateAutoOutputSubscription();
     }
 
     @Override
-    public Widget createUIWidget() {
+    public void buildMainUI(ParentWidget<?> parent, PosGuiData guiData, PanelSyncManager syncManager,
+                            UISettings settings) {
+        com.gregtechceu.gtceu.api.machine.feature.IMuiMachine.super.buildMainUI(parent, guiData, syncManager, settings);
+
         int rowSize = (int) Math.sqrt(inventorySize);
         int colSize = rowSize;
         if (inventorySize == 8) {
             rowSize = 4;
             colSize = 2;
         }
-        var template = new WidgetGroup(0, 0, 18 * rowSize + 8, 18 * colSize + 8);
-        template.setBackground(GuiTextures.BACKGROUND_INVERSE);
-        int index = 0;
+
+        var grid = Flow.column().coverChildren();
         for (int y = 0; y < colSize; y++) {
+            var row = Flow.row().coverChildren();
             for (int x = 0; x < rowSize; x++) {
-                template.addWidget(new SlotWidget(chargerInventory, index++, 4 + x * 18, 4 + y * 18, true, true)
-                        .setBackgroundTexture(new GuiTextureGroup(GuiTextures.SLOT, GuiTextures.CHARGER_OVERLAY)));
+                int index = y * rowSize + x;
+                row.addChild(new ItemSlot()
+                        .slot(chargerInventory, index)
+                        .background(GTGuiTextures.SLOT, GTGuiTextures.CHARGER_OVERLAY), -1);
             }
+            grid.addChild(row, -1);
         }
 
-        var editableUI = createEnergyBar();
-        var energyBar = editableUI.createDefault();
-
-        var group = new WidgetGroup(0, 0,
-                Math.max(energyBar.getSize().width + template.getSize().width + 4 + 8, 172),
-                Math.max(template.getSize().height + 8, energyBar.getSize().height + 8));
-        var size = group.getSize();
-        energyBar.setSelfPosition(new Position(3, (size.height - energyBar.getSize().height) / 2));
-        template.setSelfPosition(new Position(
-                (size.width - energyBar.getSize().width - 4 - template.getSize().width) / 2 + 2 +
-                        energyBar.getSize().width + 2,
-                (size.height - template.getSize().height) / 2));
-        group.addWidget(energyBar);
-        group.addWidget(template);
-        editableUI.setupUI(group, this);
-        return group;
+        parent.addChild(grid, -1);
     }
 
-    protected class EnergyBatteryTrait extends NotifiableEnergyContainer {
+    protected static class EnergyBatteryTrait extends NotifiableEnergyContainer {
 
-        protected EnergyBatteryTrait(int invSize) {
-            super(
-                    AutoChargerMachine.this,
-                    GTValues.V[tier] * invSize * 32L,
-                    GTValues.V[tier],
-                    invSize * AMPS_PER_ITEM,
-                    0L,
-                    0L);
-            setSideInputCondition(side -> isWorkingEnabled);
+        protected EnergyBatteryTrait(int tier, int invSize) {
+            super(GTValues.V[tier] * invSize * 32L, GTValues.V[tier], invSize * AMPS_PER_ITEM, 0L, 0L);
+            setSideInputCondition(side -> ((AutoChargerMachine) getMachine()).isWorkingEnabled);
             setSideOutputCondition(side -> false);
+        }
+
+        private AutoChargerMachine owner() {
+            return (AutoChargerMachine) getMachine();
         }
 
         private List<Object> getNonFullElectricItem() {
             List<Object> electricItems = new ArrayList<>();
-            for (int i = 0; i < chargerInventory.getSlots(); i++) {
-                var electricItemStack = chargerInventory.getStackInSlot(i);
+            for (int i = 0; i < owner().chargerInventory.getSlots(); i++) {
+                var electricItemStack = owner().chargerInventory.getStackInSlot(i);
                 var electricItem = GTCapabilityHelper.getElectricItem(electricItemStack);
                 if (electricItem != null) {
                     if (electricItem.getCharge() < electricItem.getMaxCharge()) {
@@ -292,10 +224,11 @@ public class AutoChargerMachine extends TieredEnergyMachine
             return electricItems;
         }
 
-        private void changeState(ChargerMachine.State newState) {
-            if (state != newState) {
-                state = newState;
-                setRenderState(getRenderState().setValue(GTMachineModelProperties.CHARGER_STATE, newState));
+        private void changeState(BatteryBufferMachine.State newState) {
+            if (owner().state != newState) {
+                owner().state = newState;
+                owner().setRenderState(
+                        owner().getRenderState().setValue(GTMachineModelProperties.CHARGER_STATE, newState));
             }
         }
 
@@ -307,7 +240,7 @@ public class AutoChargerMachine extends TieredEnergyMachine
                 lastTimeStamp = latestTimeStamp;
             }
             if (amperage <= 0 || voltage <= 0) {
-                changeState(ChargerMachine.State.IDLE);
+                changeState(BatteryBufferMachine.State.IDLE);
                 return 0;
             }
 
@@ -320,7 +253,9 @@ public class AutoChargerMachine extends TieredEnergyMachine
 
             if (side == null || inputsEnergy(side)) {
                 if (voltage > getInputVoltage()) {
-                    doExplosion(GTUtil.getExplosionPower(voltage));
+                    getLevel().explode(null, getBlockPos().getX() + 0.5, getBlockPos().getY() + 0.5,
+                            getBlockPos().getZ() + 0.5, GTUtil.getExplosionPower(voltage),
+                            net.minecraft.world.level.Level.ExplosionInteraction.BLOCK);
                     return usedAmps;
                 }
 
@@ -337,10 +272,10 @@ public class AutoChargerMachine extends TieredEnergyMachine
                     long charged = 0;
                     if (electricItem instanceof IElectricItem item) {
                         charged = item.charge(Math.min(distributed, GTValues.V[item.getTier()] * AMPS_PER_ITEM),
-                                getTier(), true, false);
+                                owner().getTier(), true, false);
                     } else if (electricItem instanceof IEnergyStorage energyStorage) {
                         charged = FeCompat.insertEu(energyStorage,
-                                Math.min(distributed, GTValues.V[getTier()] * AMPS_PER_ITEM), false);
+                                Math.min(distributed, GTValues.V[owner().getTier()] * AMPS_PER_ITEM), false);
                     }
                     if (charged > 0) {
                         changed = true;
@@ -350,8 +285,8 @@ public class AutoChargerMachine extends TieredEnergyMachine
                 }
 
                 if (changed) {
-                    AutoChargerMachine.this.markDirty();
-                    changeState(ChargerMachine.State.RUNNING);
+                    owner().self().setChanged();
+                    changeState(BatteryBufferMachine.State.RUNNING);
                 }
 
                 setEnergyStored(getInternalStorage() - internalAmps * voltage + energy);
@@ -363,8 +298,8 @@ public class AutoChargerMachine extends TieredEnergyMachine
         @Override
         public long getEnergyCapacity() {
             long energyCapacity = 0L;
-            for (int i = 0; i < chargerInventory.getSlots(); i++) {
-                var electricItemStack = chargerInventory.getStackInSlot(i);
+            for (int i = 0; i < owner().chargerInventory.getSlots(); i++) {
+                var electricItemStack = owner().chargerInventory.getStackInSlot(i);
                 var electricItem = GTCapabilityHelper.getElectricItem(electricItemStack);
                 if (electricItem != null) {
                     energyCapacity += electricItem.getMaxCharge();
@@ -378,7 +313,7 @@ public class AutoChargerMachine extends TieredEnergyMachine
             }
 
             if (energyCapacity == 0) {
-                changeState(ChargerMachine.State.IDLE);
+                changeState(BatteryBufferMachine.State.IDLE);
             }
 
             return energyCapacity;
@@ -387,8 +322,8 @@ public class AutoChargerMachine extends TieredEnergyMachine
         @Override
         public long getEnergyStored() {
             long energyStored = 0L;
-            for (int i = 0; i < chargerInventory.getSlots(); i++) {
-                var electricItemStack = chargerInventory.getStackInSlot(i);
+            for (int i = 0; i < owner().chargerInventory.getSlots(); i++) {
+                var electricItemStack = owner().chargerInventory.getStackInSlot(i);
                 var electricItem = GTCapabilityHelper.getElectricItem(electricItemStack);
                 if (electricItem != null) {
                     energyStored += electricItem.getCharge();
@@ -402,9 +337,8 @@ public class AutoChargerMachine extends TieredEnergyMachine
             }
 
             var capacity = getEnergyCapacity();
-
             if (capacity != 0 && capacity == energyStored) {
-                changeState(ChargerMachine.State.FINISHED);
+                changeState(BatteryBufferMachine.State.FINISHED);
             }
 
             return energyStored;

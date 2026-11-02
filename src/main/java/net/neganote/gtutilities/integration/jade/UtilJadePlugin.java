@@ -1,34 +1,4 @@
+// Jade integration disabled for GT 8.0.0 build
 package net.neganote.gtutilities.integration.jade;
 
-import com.gregtechceu.gtceu.GTCEu;
-
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neganote.gtutilities.integration.jade.provider.EnlargedMEStockingBusInformationProvider;
-import net.neganote.gtutilities.integration.jade.provider.WEBInformationProvider;
-
-import snownee.jade.api.IWailaClientRegistration;
-import snownee.jade.api.IWailaCommonRegistration;
-import snownee.jade.api.IWailaPlugin;
-import snownee.jade.api.WailaPlugin;
-
-@SuppressWarnings("unused")
-@WailaPlugin
-public class UtilJadePlugin implements IWailaPlugin {
-
-    @Override
-    public void register(IWailaCommonRegistration registration) {
-        registration.registerBlockDataProvider(new WEBInformationProvider(), BlockEntity.class);
-        if (GTCEu.Mods.isAE2Loaded()) {
-            registration.registerBlockDataProvider(new EnlargedMEStockingBusInformationProvider(), BlockEntity.class);
-        }
-    }
-
-    @Override
-    public void registerClient(IWailaClientRegistration registration) {
-        registration.registerBlockComponent(new WEBInformationProvider(), Block.class);
-        if (GTCEu.Mods.isAE2Loaded()) {
-            registration.registerBlockComponent(new EnlargedMEStockingBusInformationProvider(), Block.class);
-        }
-    }
-}
+public class UtilJadePlugin {}

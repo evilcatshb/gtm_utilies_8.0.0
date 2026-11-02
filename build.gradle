@@ -14,9 +14,15 @@ sourceSets {
     }
 }
 
+
 repositories {
     mavenLocal()
     mavenCentral()
+    flatDir {
+        // Local GTCEu 8.0.0-SNAPSHOT build (libs/gtceu-1.20.1-8.0.0-SNAPSHOT+...jar);
+        // not yet published to maven.gtceu.com, so we resolve it from disk instead.
+        dirs 'libs'
+    }
     maven {
         name = 'GTCEu Maven'
         url = 'https://maven.gtceu.com'
@@ -145,13 +151,22 @@ dependencies {
     modRuntimeOnly("dev.emi:emi-forge:${emi_version}+${minecraft_version}")
     modImplementation("curse.maven:jade-324717:5390389")
 
-    // GregTech and dependencies
-    modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}:slim") { transitive = false }
+    // GregTech (built locally from source; 8.0.0-SNAPSHOT is not yet published to maven.gtceu.com,
+    // so we resolve it from the flatDir repo pointed at libs/ above instead of a real maven coordinate).
+    // flatDir has no POM metadata, so this is never transitive - no need to set transitive = false.
+    modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_version}")
+    // GTCEu 8 no longer bundles LDLib, but GT Utilities still has legacy LDLib-based GUI/integration classes.
     modImplementation("com.lowdragmc.ldlib:ldlib-forge-${minecraft_version}:${ldlib_version}") { transitive = false }
+    // ModularUI is jarjar'd inside GTCEu but is not inlined into the root of that jar, so the compiler
+    // cannot find brachy.modularui classes without this explicit compile-only entry.
+    compileOnly(fileTree(dir: 'libs', includes: ['modularui-*.jar']))
+    // NOTE: LDLib is no longer a GTCEu dependency as of 8.0.0 - its GUI framework and sync-data system
+    // were replaced by a ModularUI library that GTCEu now jar-in-jars itself, so it is intentionally
+    // not declared here anymore (see api.mui / api.machine.mui / api.sync_system packages instead).
     modImplementation("com.tterrag.registrate:Registrate:${registrate_version}")
     modImplementation("dev.latvian.mods:kubejs-forge:${kubejs_version}")
     modImplementation("dev.latvian.mods:rhino-forge:${rhino_version}")
-    modImplementation("dev.toma.configuration:configuration-forge-${minecraft_version}:${configuration_version}")
+    modImplementation("dev.toma.configuration:configuration-${minecraft_version}:${configuration_version}") // resolved from libs/ via flatDir
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}")
     modImplementation("appeng:appliedenergistics2-forge:${appeng_version}")
 
@@ -170,7 +185,7 @@ tasks.named('processResources', ProcessResources).configure {
             "mod_author": mod_author,
             "forge_version": forge_version.split("\\.")[0], // only specify major version of forge
             "minecraft_version": minecraft_version,
-            "gtceu_version": gtceu_version,
+            "gtceu_version": gtceu_mod_version,
     ]
     inputs.properties(properties)
 
@@ -187,4 +202,6 @@ tasks.withType(JavaCompile).configureEach {
     // If Javadoc is generated, this must be specified in that task too.
     options.encoding = "UTF-8"
     options.release.set(17)
+    options.compilerArgs << "-Xmaxerrs" << "10000"
 }
+

@@ -3,9 +3,9 @@ package net.neganote.gtutilities;
 import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.GTCEuAPI;
 import com.gregtechceu.gtceu.api.data.chemical.material.event.MaterialEvent;
-import com.gregtechceu.gtceu.api.data.chemical.material.event.MaterialRegistryEvent;
 import com.gregtechceu.gtceu.api.data.chemical.material.event.PostMaterialEvent;
 import com.gregtechceu.gtceu.api.machine.MachineDefinition;
+import com.gregtechceu.gtceu.api.placeholder.Placeholder;
 import com.gregtechceu.gtceu.api.recipe.GTRecipeType;
 import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 import com.gregtechceu.gtceu.common.data.GTCreativeModeTabs;
@@ -31,14 +31,11 @@ import net.neganote.gtutilities.client.renderer.UtilShaders;
 import net.neganote.gtutilities.common.data.UtilPlaceholders;
 import net.neganote.gtutilities.common.item.InfiniteSprayCanBehaviour;
 import net.neganote.gtutilities.common.item.UtilItems;
-import net.neganote.gtutilities.common.item.UtilToolItems;
-import net.neganote.gtutilities.common.machine.UtilAEMachines;
 import net.neganote.gtutilities.common.machine.UtilMachines;
 import net.neganote.gtutilities.common.materials.UtilMaterials;
 import net.neganote.gtutilities.common.tools.UtilToolConnection;
 import net.neganote.gtutilities.config.UtilConfig;
 import net.neganote.gtutilities.datagen.UtilDatagen;
-import net.neganote.gtutilities.integration.ae2.gridservice.TagStockingGridService;
 import net.neganote.gtutilities.network.UtilsNetwork;
 
 import com.tterrag.registrate.util.entry.RegistryEntry;
@@ -50,6 +47,7 @@ public class GregTechModernUtilities {
 
     public static final String MOD_ID = "gtmutils";
     public static final Logger LOGGER = LogManager.getLogger();
+    // GTRegistrate.create() auto-registers event listeners in 8.0.0; no registerRegistrate() call needed.
     public static GTRegistrate REGISTRATE = GTRegistrate.create(GregTechModernUtilities.MOD_ID);
 
     public static RegistryEntry<CreativeModeTab> UTIL_CREATIVE_TAB = null;
@@ -64,15 +62,15 @@ public class GregTechModernUtilities {
             modEventBus.addListener(UtilKeybinds::register);
             modEventBus.register(UtilShaders.class);
         }
-        modEventBus.addListener(this::addMaterialRegistries);
+        // MaterialRegistryEvent was removed in GTCEu 8.0.0; material namespace registration
+        // now happens automatically through the @GTAddon annotation on GTMUtilitiesGTAddon.
         modEventBus.addListener(this::addMaterials);
         modEventBus.addListener(this::modifyMaterials);
         modEventBus.addGenericListener(GTRecipeType.class, this::registerRecipeTypes);
         modEventBus.addGenericListener(MachineDefinition.class, this::registerMachines);
+        modEventBus.addGenericListener(Placeholder.class, this::registerPlaceholders);
 
         // Most other events are fired on Forge's bus.
-        // If we want to use annotations to register event listeners,
-        // we need to register our object like this!
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(UtilEvents.class);
         MinecraftForge.EVENT_BUS.addListener(InfiniteSprayCanBehaviour::onBlockPlaced);
@@ -81,6 +79,13 @@ public class GregTechModernUtilities {
 
     public static void init() {
         UtilConfig.init();
+        // Force UtilItems class initialization while Registrate is still collecting registrations.
+        // The client setup event runs too late: if UtilItems has not been initialized yet,
+        // OMNIBREAKER remains null and ItemEntry#get() throws "Registry entry not present".
+        if (UtilConfig.INSTANCE.features.omnibreakerEnabled) {
+            @SuppressWarnings("unused")
+            Object ignored = UtilItems.OMNIBREAKER;
+        }
         if (UtilConfig.INSTANCE.features.omnibreakerEnabled) {
             UTIL_CREATIVE_TAB = REGISTRATE
                     .defaultCreativeTab(GregTechModernUtilities.MOD_ID,
@@ -101,15 +106,11 @@ public class GregTechModernUtilities {
                                     .title(REGISTRATE.addLang("itemGroup", GregTechModernUtilities.id("creative_tab"),
                                             "GregTech Modern Utilities"))
                                     .icon(GTItems.INTEGRATED_CIRCUIT_HV::asStack)
-                                    // same as above, but using a GTm item for the icon instead
                                     .build())
                     .register();
         }
-        UtilItems.init();
-        UtilToolItems.init();
-        REGISTRATE.registerRegistrate();
+        // registerRegistrate() no longer exists in GTCEu 8.0.0; GTRegistrate.create() handles it.
         UtilDatagen.init();
-        UtilPlaceholders.init();
     }
 
     public static ResourceLocation id(String path) {
@@ -119,9 +120,6 @@ public class GregTechModernUtilities {
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
             UtilsNetwork.init();
-            if (GTCEu.Mods.isAE2Loaded()) {
-                TagStockingGridService.register();
-            }
             LOGGER.info("Hello from common setup! This is *after* registries are done, so we can do this:");
             LOGGER.info("Look, I found a {}!", Items.DIAMOND);
         });
@@ -143,7 +141,6 @@ public class GregTechModernUtilities {
                             return 0;
                         });
             }
-
         });
     }
 
@@ -158,18 +155,10 @@ public class GregTechModernUtilities {
         }
     }
 
-    // You MUST have this for custom materials.
-    // Remember to register them not to GT's namespace, but your own.
-    private void addMaterialRegistries(MaterialRegistryEvent event) {
-        GTCEuAPI.materialManager.createRegistry(GregTechModernUtilities.MOD_ID);
-    }
-
-    // As well as this.
     private void addMaterials(MaterialEvent event) {
         UtilMaterials.register();
     }
 
-    // This is optional, though.
     private void modifyMaterials(PostMaterialEvent event) {
         UtilToolConnection.modifyMaterials();
     }
@@ -179,7 +168,13 @@ public class GregTechModernUtilities {
     }
 
     private void registerMachines(GTCEuAPI.RegisterEvent<ResourceLocation, MachineDefinition> event) {
-        UtilMachines.init();
-        UtilAEMachines.init();
+        // GTCEu 8.0.0 fires this generic registration event while the machine registry is open.
+        // MachineBuilder.register() must run here; initializeAddon()/addRecipes() are too late.
+        @SuppressWarnings("unused")
+        Object ignored = UtilMachines.AUTO_CHARGER_4;
+    }
+
+    private void registerPlaceholders(GTCEuAPI.RegisterEvent<ResourceLocation, Placeholder> event) {
+        UtilPlaceholders.init();
     }
 }

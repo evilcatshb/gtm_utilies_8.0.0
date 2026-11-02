@@ -91,7 +91,11 @@ public class UtilRecipes {
 
         }
 
-        if (UtilConfig.INSTANCE.features.expandedBuffersEnabled && GTCEu.Mods.isAE2Loaded()) {
+        // NOTE: UtilAEMachines.* are currently unimplemented placeholders (null) in this GT8 port
+        // (see UtilAEMachines.java javadoc - ModularUI migration pending). Recipes referencing them
+        // are disabled below to prevent a NullPointerException in GTRecipeBuilder.outputItems() during
+        // recipe registration at startup. Re-enable once those machines are actually registered.
+        if (false && UtilConfig.INSTANCE.features.expandedBuffersEnabled && GTCEu.Mods.isAE2Loaded()) {
             ASSEMBLY_LINE_RECIPES.recipeBuilder("expanded_me_pattern_buffer")
                     .inputItems(DUAL_IMPORT_HATCH[ZPM], 1)
                     .inputItems(EMITTER_ZPM, 2)
@@ -142,7 +146,8 @@ public class UtilRecipes {
             }
         }
 
-        if (UtilConfig.INSTANCE.features.tagStockingEnabled) {
+        if (false && UtilConfig.INSTANCE.features.tagStockingEnabled) { // disabled: UtilAEMachines placeholders are
+                                                                        // null (see note above)
             ASSEMBLER_RECIPES.recipeBuilder("me_tag_stocking_input_bus")
                     .inputItems(GTAEMachines.STOCKING_IMPORT_BUS_ME.asStack(), 1)
                     .inputItems(CustomTags.LuV_CIRCUITS, 2)
@@ -160,7 +165,8 @@ public class UtilRecipes {
                     .duration(400).EUt(VA[LuV]).save(provider);
         }
 
-        if (UtilConfig.INSTANCE.features.enlargedStockingEnabled) {
+        if (false && UtilConfig.INSTANCE.features.enlargedStockingEnabled) { // disabled: UtilAEMachines placeholders
+                                                                             // are null (see note above)
             ASSEMBLER_RECIPES.recipeBuilder("me_enlarged_stocking_input_bus")
                     .inputItems(GTAEMachines.STOCKING_IMPORT_BUS_ME.asStack(), 1)
                     .inputItems(CustomTags.LuV_CIRCUITS, 2)
@@ -180,7 +186,9 @@ public class UtilRecipes {
                     .duration(400).EUt(VA[LuV]).save(provider);
         }
 
-        if (UtilConfig.INSTANCE.features.enlargedStockingEnabled && UtilConfig.INSTANCE.features.tagStockingEnabled) {
+        if (false && UtilConfig.INSTANCE.features.enlargedStockingEnabled &&
+                UtilConfig.INSTANCE.features.tagStockingEnabled) { // disabled: UtilAEMachines placeholders are null
+                                                                   // (see note above)
             ASSEMBLER_RECIPES.recipeBuilder("me_enlarged_tag_stocking_input_bus")
                     .inputItems(UtilAEMachines.ME_ENLARGED_STOCKING_INPUT_BUS, 1)
                     .inputItems(UtilAEMachines.ME_TAG_STOCKING_INPUT_BUS, 1)

@@ -35,3 +35,30 @@ run-data/
 !/run/server.properties
 !/run/ops.json
 !/run/eula.txt
+
+# Local build logs, dependency dumps, and temporary editor output
+*.log
+*.err
+*.pid
+*.exit
+*.status
+build_*.txt
+compile_*.txt
+deps.txt
+depco.txt
+imports.txt
+*.bak
+*.bak-*
+*.BAK*
+*.pre_*
+*.pre-*
+*.backup
+sed*
+
+# Local source snapshots/backups are not part of the active source tree
+/src/main/java.gt8-backup-*/
+/src/main/java.gt8-backup-*
+
+# Keep the active build inputs in libs/, but not timestamped backup copies
+/libs/*.pre-*
+*.backup_*

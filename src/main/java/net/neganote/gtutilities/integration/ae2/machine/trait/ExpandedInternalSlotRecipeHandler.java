@@ -1,9 +1,9 @@
 package net.neganote.gtutilities.integration.ae2.machine.trait;
 
 import com.gregtechceu.gtceu.api.capability.recipe.*;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableRecipeHandlerTrait;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeHandlerGroupDistinctness;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeHandlerList;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableRecipeHandlerTrait;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerGroupDistinctness;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerList;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.recipe.ingredient.FluidIngredient;
 
@@ -43,7 +43,7 @@ public final class ExpandedInternalSlotRecipeHandler {
             super(IO.IN);
             itemRecipeHandler = new SlotItemRecipeHandler(buffer, slot, idx);
             fluidRecipeHandler = new SlotFluidRecipeHandler(buffer, slot, idx);
-            addHandlers(buffer.getCircuitInventory(), buffer.getShareInventory(), buffer.getShareTank(),
+            addHandlers(buffer.getShareInventory(), buffer.getShareTank(),
                     itemRecipeHandler, fluidRecipeHandler);
             this.setGroup(RecipeHandlerGroupDistinctness.BUS_DISTINCT);
         }
@@ -69,7 +69,7 @@ public final class ExpandedInternalSlotRecipeHandler {
 
         private SlotItemRecipeHandler(ExpandedPatternBufferPartMachine buffer,
                                       ExpandedPatternBufferPartMachine.InternalSlot slot, int index) {
-            super(buffer);
+            super();
             this.slot = slot;
             this.priority = IFilteredHandler.HIGH + index + 1;
             slot.setOnContentsChanged(this::notifyListeners);
@@ -104,7 +104,7 @@ public final class ExpandedInternalSlotRecipeHandler {
 
         private SlotFluidRecipeHandler(ExpandedPatternBufferPartMachine buffer,
                                        ExpandedPatternBufferPartMachine.InternalSlot slot, int index) {
-            super(buffer);
+            super();
             this.slot = slot;
             this.priority = IFilteredHandler.HIGH + index + 1;
             slot.setOnContentsChanged(this::notifyListeners);

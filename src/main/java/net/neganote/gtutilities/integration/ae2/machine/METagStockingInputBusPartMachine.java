@@ -1,43 +1,17 @@
 package net.neganote.gtutilities.integration.ae2.machine;
 
-import com.gregtechceu.gtceu.api.gui.GuiTextures;
-import com.gregtechceu.gtceu.api.gui.fancy.ConfiguratorPanel;
-import com.gregtechceu.gtceu.api.gui.fancy.IFancyConfiguratorButton;
-import com.gregtechceu.gtceu.api.gui.widget.ToggleButtonWidget;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.fancyconfigurator.AutoStockingFancyConfigurator;
-import com.gregtechceu.gtceu.api.machine.fancyconfigurator.CircuitFancyConfigurator;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
-import com.gregtechceu.gtceu.integration.ae2.gui.widget.AEItemConfigWidget;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
 import com.gregtechceu.gtceu.integration.ae2.machine.MEStockingBusPartMachine;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEItemList;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEItemSlot;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAESlot;
 
-import com.lowdragmc.lowdraglib.gui.texture.GuiTextureGroup;
-import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
-import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import com.lowdragmc.lowdraglib.utils.Position;
-import com.lowdragmc.lowdraglib.utils.Size;
-
-import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.BlockHitResult;
-import net.neganote.gtutilities.common.gui.widgets.MultilineTextField;
 import net.neganote.gtutilities.integration.ae2.gridservice.ITagStockingPart;
 import net.neganote.gtutilities.utils.TagMatcher;
 
@@ -51,7 +25,6 @@ import appeng.api.storage.MEStorage;
 import it.unimi.dsi.fastutil.objects.Object2ByteOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -61,24 +34,21 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @MethodsReturnNonnullByDefault
 public class METagStockingInputBusPartMachine extends MEStockingBusPartMachine implements ITagStockingPart {
 
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            METagStockingInputBusPartMachine.class, MEStockingBusPartMachine.MANAGED_FIELD_HOLDER);
-
-    @Persisted
-    @DescSynced
+    @SaveField
+    @SyncToClient
     protected String whitelistExpr = "";
-    @Persisted
-    @DescSynced
+    @SaveField
+    @SyncToClient
     protected String blacklistExpr = "";
-    @DescSynced
+    @SyncToClient
     protected String Wltmp = "";
-    @DescSynced
+    @SyncToClient
     protected String Bltmp = "";
 
-    @DescSynced
+    @SyncToClient
     protected boolean whitelistBadSyntax = false;
 
-    @DescSynced
+    @SyncToClient
     protected boolean blacklistBadSyntax = false;
 
     private Predicate<GenericStack> tagAutoPullTest = ($) -> true;
@@ -91,20 +61,9 @@ public class METagStockingInputBusPartMachine extends MEStockingBusPartMachine i
     private final transient Object2ByteOpenHashMap<AEItemKey> decisionCache = new Object2ByteOpenHashMap<>();
     private static final int DECISION_CACHE_LIMIT = 8192;
 
-    public METagStockingInputBusPartMachine(IMachineBlockEntity holder, Object... args) {
-        super(holder, args);
+    public METagStockingInputBusPartMachine(BlockEntityCreationInfo holder) {
+        super(holder);
         decisionCache.defaultReturnValue((byte) -1);
-    }
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @Override
-    protected NotifiableItemStackHandler createInventory(Object... args) {
-        this.aeItemHandler = new ExportOnlyAETagStockingItemList(this, CONFIG_SIZE);
-        return this.aeItemHandler;
     }
 
     @Override
@@ -214,80 +173,6 @@ public class METagStockingInputBusPartMachine extends MEStockingBusPartMachine i
     }
 
     @Override
-    public Widget createUIWidget() {
-        WidgetGroup group = new WidgetGroup(new Position(0, 0), new Size(176, 150));
-
-        int y = 6;
-        group.addWidget(new LabelWidget(3, y, () -> this.isOnline ?
-                "gtceu.gui.me_network.online" :
-                "gtceu.gui.me_network.offline"));
-
-        group.addWidget(new ToggleButtonWidget(176 - 55, 2, 50, 16, () -> false, pressed -> {
-            whitelistExpr = pressed ? Wltmp : whitelistExpr;
-            blacklistExpr = pressed ? Bltmp : blacklistExpr;
-
-            invalidateFilterCaches();
-
-            if (updateMEStatus()) {
-                markTagRefresh();
-                updateInventorySubscription();
-            }
-        }).setTexture(new GuiTextureGroup(GuiTextures.VANILLA_BUTTON, new TextTexture("Confirm")),
-                new GuiTextureGroup(GuiTextures.VANILLA_BUTTON, new TextTexture("Confirm"))));
-
-        y += 14;
-        var WLField = new MultilineTextField(
-                7, y, 160, 25,
-                () -> Wltmp,
-                v -> {
-                    Wltmp = v;
-                },
-                Component.literal("Whitelist tags..."),
-                () -> whitelistBadSyntax ? 0xFFFF0000 : null);
-        group.addWidget(WLField);
-
-        y += 29;
-        var BLField = new MultilineTextField(
-                7, y, 160, 25,
-                () -> Bltmp,
-                v -> {
-                    Bltmp = v;
-                },
-                Component.literal("Blacklist tags..."),
-                () -> blacklistBadSyntax ? 0xFFFF0000 : null);
-        group.addWidget(BLField);
-
-        WLField.setDirectly(whitelistExpr);
-        BLField.setDirectly(blacklistExpr);
-
-        y += 29;
-
-        group.addWidget(new AEItemConfigWidget(15, y, this.aeItemHandler) {
-
-            @Override
-            public boolean isStocking() {
-                return true;
-            }
-
-            @Override
-            public boolean isAutoPull() {
-                return true;
-            }
-        });
-
-        return group;
-    }
-
-    @Override
-    protected InteractionResult onScrewdriverClick(Player playerIn, InteractionHand hand, Direction gridSide,
-                                                   BlockHitResult hitResult) {
-        if (!this.isRemote()) {
-            playerIn.sendSystemMessage(Component.literal("This bus is always Tag-Mode (no manual/autoPull toggle)."));
-        }
-        return InteractionResult.sidedSuccess(this.isRemote());
-    }
-
-    @Override
     protected CompoundTag writeConfigToTag() {
         CompoundTag tag = super.writeConfigToTag();
         tag.putString("WhitelistExpr", whitelistExpr);
@@ -321,39 +206,11 @@ public class METagStockingInputBusPartMachine extends MEStockingBusPartMachine i
     }
 
     // We can't call super to avoid the auto-pull toggle...
-    @Override
-    public void attachConfigurators(ConfiguratorPanel configuratorPanel) {
-        configuratorPanel.attachConfigurators(new IFancyConfiguratorButton.Toggle(
-                GuiTextures.BUTTON_POWER.getSubTexture(0, 0, 1, 0.5),
-                GuiTextures.BUTTON_POWER.getSubTexture(0, 0.5, 1, 0.5),
-                this::isWorkingEnabled, (clickData, pressed) -> this.setWorkingEnabled(pressed))
-                .setTooltipsSupplier(pressed -> List.of(
-                        Component.translatable(
-                                pressed ? "behaviour.soft_hammer.enabled" : "behaviour.soft_hammer.disabled"))));
-        for (var direction : Direction.values()) {
-            if (this.getCoverContainer().hasCover(direction)) {
-                var configurator = this.getCoverContainer().getCoverAtSide(direction).getConfigurator();
-                if (configurator != null)
-                    configuratorPanel.attachConfigurators(configurator);
-            }
-        }
-        configuratorPanel.attachConfigurators(new IFancyConfiguratorButton.Toggle(
-                GuiTextures.BUTTON_DISTINCT_BUSES.getSubTexture(0, 0.5, 1, 0.5),
-                GuiTextures.BUTTON_DISTINCT_BUSES.getSubTexture(0, 0, 1, 0.5),
-                this::isDistinct, (clickData, pressed) -> setDistinct(pressed))
-                .setTooltipsSupplier(pressed -> List.of(
-                        Component.translatable("gtceu.multiblock.universal.distinct")
-                                .setStyle(Style.EMPTY.withColor(ChatFormatting.YELLOW))
-                                .append(Component.translatable(pressed ? "gtceu.multiblock.universal.distinct.yes" :
-                                        "gtceu.multiblock.universal.distinct.no")))));
-        configuratorPanel.attachConfigurators(new CircuitFancyConfigurator(circuitInventory.storage));
-        configuratorPanel.attachConfigurators(new AutoStockingFancyConfigurator(this));
-    }
 
     private class ExportOnlyAETagStockingItemList extends ExportOnlyAEItemList {
 
         public ExportOnlyAETagStockingItemList(MetaMachine holder, int slots) {
-            super(holder, slots, () -> METagStockingInputBusPartMachine.this.new ExportOnlyAETagStockingItemSlot());
+            super(slots, () -> METagStockingInputBusPartMachine.this.new ExportOnlyAETagStockingItemSlot());
         }
 
         @Override

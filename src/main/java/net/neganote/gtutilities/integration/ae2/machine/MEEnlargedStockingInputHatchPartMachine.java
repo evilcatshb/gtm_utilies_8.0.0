@@ -1,37 +1,20 @@
 package net.neganote.gtutilities.integration.ae2.machine;
 
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableFluidTank;
-import com.gregtechceu.gtceu.common.item.IntCircuitBehaviour;
-import com.gregtechceu.gtceu.config.ConfigHolder;
-import com.gregtechceu.gtceu.integration.ae2.gui.widget.AEFluidConfigWidget;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableFluidTank;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
 import com.gregtechceu.gtceu.integration.ae2.machine.MEStockingHatchPartMachine;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEFluidList;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAEFluidSlot;
 import com.gregtechceu.gtceu.integration.ae2.slot.ExportOnlyAESlot;
 import com.gregtechceu.gtceu.integration.ae2.utils.AEUtil;
 
-import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import com.lowdragmc.lowdraglib.utils.Position;
-import com.lowdragmc.lowdraglib.utils.Size;
-
 import net.minecraft.MethodsReturnNonnullByDefault;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.neganote.gtutilities.common.gui.widgets.SimpleScrollbarWidget;
 import net.neganote.gtutilities.config.UtilConfig;
 
 import appeng.api.config.Actionable;
@@ -43,12 +26,8 @@ import appeng.api.storage.MEStorage;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -57,30 +36,22 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @MethodsReturnNonnullByDefault
 public class MEEnlargedStockingInputHatchPartMachine extends MEStockingHatchPartMachine {
 
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            MEEnlargedStockingInputHatchPartMachine.class, MEStockingHatchPartMachine.MANAGED_FIELD_HOLDER);
-
     private static final int SLOTS_PER_ROW = 8;
     private static final int TOTAL_ROWS = Math.min(64, UtilConfig.INSTANCE.features.enlargedStockingSizeRows);
     private static final int TOTAL_SLOTS = SLOTS_PER_ROW * TOTAL_ROWS;
 
-    @Persisted
-    @DescSynced
+    @SaveField
+    @SyncToClient
     private boolean enlargedAutoPull = false;
     private Predicate<GenericStack> enlargedAutoPullTest = $ -> false;
 
-    public MEEnlargedStockingInputHatchPartMachine(IMachineBlockEntity holder, Object... args) {
-        super(holder, args);
+    public MEEnlargedStockingInputHatchPartMachine(BlockEntityCreationInfo holder) {
+        super(holder);
         super.setAutoPull(false);
     }
 
     @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @Override
-    protected NotifiableFluidTank createTank(int initialCapacity, int slots, Object... args) {
+    protected NotifiableFluidTank createTank(int initialCapacity, int slots) {
         this.aeFluidHandler = new ExportOnlyAEStockingFluidList(this, TOTAL_SLOTS);
         return this.aeFluidHandler;
     }
@@ -115,8 +86,6 @@ public class MEEnlargedStockingInputHatchPartMachine extends MEStockingHatchPart
     @Override
     public void autoIO() {
         super.autoIO();
-
-        if (getTicksPerCycle() == 0) setTicksPerCycle(ConfigHolder.INSTANCE.compat.ae2.updateIntervals);
 
         if (getOffsetTimer() % (long) getTicksPerCycle() == 0L) {
             if (!isRemote() && enlargedAutoPull) {
@@ -197,7 +166,7 @@ public class MEEnlargedStockingInputHatchPartMachine extends MEStockingHatchPart
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("AutoPull", true);
         tag.putByte("GhostCircuit",
-                (byte) IntCircuitBehaviour.getCircuitConfiguration(circuitInventory.getStackInSlot(0)));
+                (byte) 0);
         return tag;
     }
 
@@ -205,131 +174,11 @@ public class MEEnlargedStockingInputHatchPartMachine extends MEStockingHatchPart
     protected void readConfigFromTag(CompoundTag tag) {
         if (tag.getBoolean("AutoPull")) {
             setAutoPull(true);
-            circuitInventory.setStackInSlot(0, IntCircuitBehaviour.stack(tag.getByte("GhostCircuit")));
+
             return;
         }
         setAutoPull(false);
         super.readConfigFromTag(tag);
-    }
-
-    @Override
-    protected InteractionResult onScrewdriverClick(Player playerIn, InteractionHand hand, Direction gridSide,
-                                                   BlockHitResult hitResult) {
-        if (!isRemote()) {
-            setAutoPull(!isAutoPull());
-            if (isAutoPull()) {
-                playerIn.sendSystemMessage(Component.translatable("gtceu.machine.me.stocking_auto_pull_enabled"));
-            } else {
-                playerIn.sendSystemMessage(Component.translatable("gtceu.machine.me.stocking_auto_pull_disabled"));
-            }
-        }
-        return InteractionResult.sidedSuccess(isRemote());
-    }
-
-    @Override
-    public Widget createUIWidget() {
-        int visibleRows = 4;
-        int rowHeight = 40;
-        int startX = 10;
-        int startY = 20;
-        int scrollbarX = 158;
-
-        final List<AEFluidConfigWidget> allRowWidgets = new ArrayList<>();
-
-        Consumer<Integer> onScrollChanged = (currentScroll) -> {
-            for (int i = 0; i < allRowWidgets.size(); i++) {
-                AEFluidConfigWidget row = allRowWidgets.get(i);
-                int relativeIndex = i - currentScroll;
-                if (relativeIndex >= 0 && relativeIndex < visibleRows) {
-                    row.setVisible(true);
-                    row.setSelfPosition(startX, startY + (relativeIndex * rowHeight));
-                } else {
-                    row.setVisible(false);
-                }
-            }
-        };
-
-        SimpleScrollbarWidget scrollbar = new SimpleScrollbarWidget(
-                scrollbarX,
-                startY,
-                visibleRows * rowHeight - 4,
-                onScrollChanged);
-
-        scrollbar.setRange(0, TOTAL_ROWS - visibleRows, 1);
-
-        WidgetGroup group = new WidgetGroup(new Position(0, 0), new Size(178, 200)) {
-
-            @Override
-            public boolean mouseWheelMove(double mouseX, double mouseY, double wheelDelta) {
-                if (super.mouseWheelMove(mouseX, mouseY, wheelDelta)) {
-                    return true;
-                }
-                if (isMouseOver(getPositionX(), getPositionY(), getSizeWidth(), getSizeHeight(), mouseX, mouseY)) {
-                    return scrollbar.mouseWheelMove(mouseX, mouseY, wheelDelta);
-                }
-                return false;
-            }
-        };
-
-        group.addWidget(new LabelWidget(5, 5, () -> this.isOnline ?
-                "gtceu.gui.me_network.online" :
-                "gtceu.gui.me_network.offline"));
-
-        for (int i = 0; i < TOTAL_ROWS; i++) {
-            final int currentRowIndex = i;
-            final int startSlotIndex = currentRowIndex * SLOTS_PER_ROW;
-
-            AtomicInteger localSlotCounter = new AtomicInteger(0);
-            ExportOnlyAEFluidList viewHandler = new ExportOnlyAEFluidList(
-                    this,
-                    SLOTS_PER_ROW,
-                    () -> {
-                        int globalSlotIndex = startSlotIndex + localSlotCounter.getAndIncrement();
-                        if (globalSlotIndex < this.aeFluidHandler.getTanks()) {
-                            return this.aeFluidHandler.getInventory()[globalSlotIndex];
-                        }
-                        return null;
-                    }) {
-
-                @Override
-                public boolean isStocking() {
-                    return true;
-                }
-
-                @Override
-                public boolean isAutoPull() {
-                    return MEEnlargedStockingInputHatchPartMachine.this.isAutoPull();
-                }
-            };
-
-            var root = (ExportOnlyAEStockingFluidList) MEEnlargedStockingInputHatchPartMachine.this.aeFluidHandler;
-            Runnable rootCb = root::fireContentsChanged;
-
-            for (int s = 0; s < SLOTS_PER_ROW; s++) {
-                int global = startSlotIndex + s;
-                if (global >= 0 && global < MEEnlargedStockingInputHatchPartMachine.this.aeFluidHandler.getTanks()) {
-                    MEEnlargedStockingInputHatchPartMachine.this.aeFluidHandler.getInventory()[global]
-                            .setOnContentsChanged(rootCb);
-                }
-            }
-
-            AEFluidConfigWidget rowWidget = new AEFluidConfigWidget(startX, startY, viewHandler) {
-
-                @Override
-                public boolean hasStackInConfig(GenericStack stack) {
-                    return MEEnlargedStockingInputHatchPartMachine.this.aeFluidHandler.hasStackInConfig(stack, true);
-                }
-            };
-
-            rowWidget.setVisible(false);
-            allRowWidgets.add(rowWidget);
-            group.addWidget(rowWidget);
-        }
-
-        group.addWidget(scrollbar);
-        onScrollChanged.accept(0);
-
-        return group;
     }
 
     private class ExportOnlyAEStockingFluidList extends ExportOnlyAEFluidList {

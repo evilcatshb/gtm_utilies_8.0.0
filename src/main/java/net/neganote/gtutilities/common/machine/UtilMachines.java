@@ -3,33 +3,29 @@ package net.neganote.gtutilities.common.machine;
 import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.GTCEuAPI;
 import com.gregtechceu.gtceu.api.GTValues;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.capability.compat.FeCompat;
 import com.gregtechceu.gtceu.api.data.RotationState;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.MachineDefinition;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
 import com.gregtechceu.gtceu.api.machine.MultiblockMachineDefinition;
 import com.gregtechceu.gtceu.api.machine.multiblock.CleanroomType;
 import com.gregtechceu.gtceu.api.machine.multiblock.PartAbility;
 import com.gregtechceu.gtceu.api.machine.property.GTMachineModelProperties;
-import com.gregtechceu.gtceu.api.pattern.FactoryBlockPattern;
+import com.gregtechceu.gtceu.api.multiblock.pattern.MultiblockPatternBuilder;
 import com.gregtechceu.gtceu.api.registry.registrate.MachineBuilder;
 import com.gregtechceu.gtceu.common.data.GTMaterials;
 import com.gregtechceu.gtceu.common.data.GTRecipeTypes;
 import com.gregtechceu.gtceu.common.data.machines.GTMachineUtils;
 import com.gregtechceu.gtceu.common.data.models.GTMachineModels;
-import com.gregtechceu.gtceu.common.machine.electric.ChargerMachine;
-import com.gregtechceu.gtceu.common.machine.electric.ConverterMachine;
 import com.gregtechceu.gtceu.common.machine.multiblock.part.CleaningMaintenanceHatchPartMachine;
 import com.gregtechceu.gtceu.config.ConfigHolder;
-import com.gregtechceu.gtceu.utils.FormattingUtil;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.neganote.gtutilities.GregTechModernUtilities;
 import net.neganote.gtutilities.common.machine.multiblock.WEBHubMachine;
 import net.neganote.gtutilities.common.machine.multiblock.WEBReceiverMachine;
-import net.neganote.gtutilities.common.machine.singleblock.AutoChargerMachine;
 import net.neganote.gtutilities.common.materials.UtilMaterials;
 import net.neganote.gtutilities.config.UtilConfig;
 
@@ -38,7 +34,7 @@ import java.util.function.BiFunction;
 
 import static com.gregtechceu.gtceu.api.GTValues.*;
 import static com.gregtechceu.gtceu.api.GTValues.V;
-import static com.gregtechceu.gtceu.api.pattern.Predicates.*;
+import static com.gregtechceu.gtceu.api.multiblock.Predicates.*;
 import static com.gregtechceu.gtceu.common.data.GTBlocks.*;
 import static net.neganote.gtutilities.GregTechModernUtilities.REGISTRATE;
 
@@ -91,34 +87,32 @@ public class UtilMachines {
             maxTier = UHV;
         }
 
-        return registerTieredMachines("auto_charger_" + itemSlotSize + "x",
-                (holder, tier) -> new AutoChargerMachine(holder, tier, itemSlotSize),
-                (tier, builder) -> builder
+        return registerTieredMachines("auto_charger",
+                (holder, tier) -> new net.neganote.gtutilities.common.machine.singleblock.AutoChargerMachine(holder,
+                        tier, itemSlotSize),
+                (builder, tier) -> builder
                         .rotationState(RotationState.ALL)
-                        .modelProperty(GTMachineModelProperties.CHARGER_STATE, ChargerMachine.State.IDLE)
-                        .model(GTMachineModels.createChargerModel())
-                        .langValue("%s %sx Auto Turbo Charger".formatted(
-                                VCF[tier] + VOLTAGE_NAMES[tier] + ChatFormatting.RESET,
-                                itemSlotSize))
-                        .tooltips(Component.translatable("gtceu.universal.tooltip.item_storage_capacity", itemSlotSize),
-                                Component.translatable("gtceu.universal.tooltip.voltage_in_out",
-                                        FormattingUtil.formatNumbers(GTValues.V[tier]),
-                                        GTValues.VNF[tier]),
-                                Component.translatable("gtceu.universal.tooltip.amperage_in_till",
-                                        itemSlotSize * ChargerMachine.AMPS_PER_ITEM))
+                        .langValue("%s Auto Charger".formatted(VCF[tier] + VN[tier] + ChatFormatting.RESET))
+                        .modelProperty(GTMachineModelProperties.CHARGER_STATE,
+                                com.gregtechceu.gtceu.common.machine.electric.BatteryBufferMachine.State.IDLE)
+                        .workableTieredHullModel(
+                                GTCEu.id("block/machines/" + VN[tier].toLowerCase(Locale.ROOT) + "/charger"))
+                        .tooltips(Component.literal("Charges electric items placed inside."),
+                                Component.literal("Charges up to " + itemSlotSize + " items simultaneously."))
                         .register(),
-                GTValues.tiersBetween(ULV, maxTier));
+                GTMachineUtils.ALL_TIERS);
     }
 
     // Copied from GTMachineUtils
     public static MachineDefinition[] registerConverter(int amperage) {
         return registerTieredMachines(amperage + "a_energy_converter",
-                (holder, tier) -> new ConverterMachine(holder, tier, amperage),
-                (tier, builder) -> builder
+                (holder, tier) -> new com.gregtechceu.gtceu.common.machine.electric.ConverterMachine(holder, tier,
+                        amperage),
+                (builder, tier) -> builder
                         .rotationState(RotationState.ALL)
                         .langValue("%s %s§eA§r Energy Converter".formatted(VCF[tier] + VN[tier] + ChatFormatting.RESET,
                                 amperage))
-                        .modelProperty(ConverterMachine.FE_TO_EU_PROPERTY, false)
+                        .modelProperty(GTMachineModelProperties.IS_FE_TO_EU, false)
                         .model(GTMachineModels.createConverterModel(64))
                         .tooltips(Component.translatable("gtceu.machine.energy_converter.description"),
                                 Component.translatable("gtceu.machine.energy_converter.tooltip_tool_usage"),
@@ -131,13 +125,14 @@ public class UtilMachines {
                                         FeCompat.toFeLong(V[tier] * amperage,
                                                 FeCompat.ratio(false))))
                         .register(),
-                GTMachineUtils.ALL_TIERS);
+                GTMachineUtils.ALL_TIERS); // fixed: added .modelProperty(IS_FE_TO_EU) above so all tiers, including ULV
+                                           // and MAX, generate valid models
     }
 
     // Copied from GTMachineUtils
     public static MachineDefinition[] registerTieredMachines(String name,
-                                                             BiFunction<IMachineBlockEntity, Integer, MetaMachine> factory,
-                                                             BiFunction<Integer, MachineBuilder<MachineDefinition, ?>, MachineDefinition> builder,
+                                                             BiFunction<BlockEntityCreationInfo, Integer, MetaMachine> factory,
+                                                             BiFunction<MachineBuilder<MachineDefinition, MetaMachine, ?>, Integer, MachineDefinition> builder,
                                                              int... tiers) {
         MachineDefinition[] definitions = new MachineDefinition[GTValues.TIER_COUNT];
         for (int tier : tiers) {
@@ -145,7 +140,7 @@ public class UtilMachines {
                     .machine(GTValues.VN[tier].toLowerCase(Locale.ROOT) + "_" + name,
                             holder -> factory.apply(holder, tier))
                     .tier(tier);
-            definitions[tier] = builder.apply(tier, register);
+            definitions[tier] = builder.apply(register, tier);
         }
         return definitions;
     }
@@ -184,17 +179,17 @@ public class UtilMachines {
                             UtilConfig.coolantEnabled())
                     .conditionalTooltip(Component.translatable("tooltip.web_hub_machine.input_coolant_before_use")
                             .withStyle(ChatFormatting.DARK_RED), UtilConfig.coolantEnabled())
-                    .pattern((definition) -> FactoryBlockPattern.start()
+                    .pattern((definition) -> MultiblockPatternBuilder.start()
                             // spotless:off
-                            .aisle("###XXX###", "####F####", "#########", "####H####", "####H####", "####H####", "####H####", "####H####")
-                            .aisle("#XXXXXXX#", "###FHF###", "####H####", "####H####", "####H####", "####F####", "#########", "#########")
-                            .aisle("#XXHHHXX#", "#########", "#########", "#########", "####F####", "####F####", "#########", "#########")
-                            .aisle("XXHHHHHXX", "#F#####F#", "#########", "####S####", "###SSS###", "###SSS###", "###S#S###", "#########")
-                            .aisle("XXHHHHHXX", "FH##H##HF", "#H##C##H#", "HH#SSS#HH", "HHFSSSFHH", "HFFSSSFFH", "H#######H", "H#######H")
-                            .aisle("XXHHHHHXX", "#F#####F#", "#########", "####S####", "###SSS###", "###SSS###", "###S#S###", "#########")
-                            .aisle("#XXHHHXX#", "#########", "#########", "#########", "####F####", "####F####", "#########", "#########")
-                            .aisle("#XXXXXXX#", "###FHF###", "####H####", "####H####", "####H####", "####F####", "#########", "#########")
-                            .aisle("###XXX###", "####F####", "#########", "####H####", "####H####", "####H####", "####H####", "####H####")
+                            .slice("###XXX###", "####F####", "#########", "####H####", "####H####", "####H####", "####H####", "####H####")
+                            .slice("#XXXXXXX#", "###FHF###", "####H####", "####H####", "####H####", "####F####", "#########", "#########")
+                            .slice("#XXHHHXX#", "#########", "#########", "#########", "####F####", "####F####", "#########", "#########")
+                            .slice("XXHHHHHXX", "#F#####F#", "#########", "####S####", "###SSS###", "###SSS###", "###S#S###", "#########")
+                            .slice("XXHHHHHXX", "FH##H##HF", "#H##C##H#", "HH#SSS#HH", "HHFSSSFHH", "HFFSSSFFH", "H#######H", "H#######H")
+                            .slice("XXHHHHHXX", "#F#####F#", "#########", "####S####", "###SSS###", "###SSS###", "###S#S###", "#########")
+                            .slice("#XXHHHXX#", "#########", "#########", "#########", "####F####", "####F####", "#########", "#########")
+                            .slice("#XXXXXXX#", "###FHF###", "####H####", "####H####", "####H####", "####F####", "#########", "#########")
+                            .slice("###XXX###", "####F####", "#########", "####H####", "####H####", "####H####", "####H####", "####H####")
                             // spotless:on
                             .where('#', any())
                             .where('X',
@@ -221,19 +216,19 @@ public class UtilMachines {
                             Component.translatable("gtceu.machine.active_transformer.tooltip.1"),
                             Component.translatable("tooltip.web_receiver_machine.frequencies")
                                     .withStyle(ChatFormatting.GRAY))
-                    .pattern((multiblockMachineDefinition -> FactoryBlockPattern.start()
-                            .aisle("abbba", "aabaa", "aaaaa", "aaaaa", "aaaaa", "aacaa", "aacaa", "aadaa")
-                            .aisle("bbbbb", "abdba", "aacaa", "aaaaa", "aaaaa", "aacaa", "aaaaa", "aaaaa")
-                            .aisle("bbbbb", "bdddb", "acdca", "aadaa", "aadaa", "ccdcc", "cadac", "daaad")
-                            .aisle("bbbbb", "abdba", "aacaa", "aaaaa", "aaaaa", "aacaa", "aaaaa", "aaaaa")
-                            .aisle("abeba", "aabaa", "aaaaa", "aaaaa", "aaaaa", "aacaa", "aacaa", "aadaa")
-                            .where("e", controller(blocks(multiblockMachineDefinition.getBlock())))
+                    .pattern((multiblockMachineDefinition -> MultiblockPatternBuilder.start()
+                            .slice("abbba", "aabaa", "aaaaa", "aaaaa", "aaaaa", "aacaa", "aacaa", "aadaa")
+                            .slice("bbbbb", "abdba", "aacaa", "aaaaa", "aaaaa", "aacaa", "aaaaa", "aaaaa")
+                            .slice("bbbbb", "bdddb", "acdca", "aadaa", "aadaa", "ccdcc", "cadac", "daaad")
+                            .slice("bbbbb", "abdba", "aacaa", "aaaaa", "aaaaa", "aacaa", "aaaaa", "aaaaa")
+                            .slice("abeba", "aabaa", "aaaaa", "aaaaa", "aaaaa", "aacaa", "aacaa", "aadaa")
+                            .where('e', controller(blocks(multiblockMachineDefinition.getBlock())))
                             .where('b',
                                     blocks(HIGH_POWER_CASING.get()).setMinGlobalLimited(12)
                                             .or(WEBReceiverMachine.getHatchPredicates()))
-                            .where("d", blocks(SUPERCONDUCTING_COIL.get()))
-                            .where("c", frames(GTMaterials.NaquadahAlloy))
-                            .where("a", air())
+                            .where('d', blocks(SUPERCONDUCTING_COIL.get()))
+                            .where('c', frames(GTMaterials.NaquadahAlloy))
+                            .where('a', air())
                             .build()))
                     .workableCasingModel(GTCEu.id("block/casings/hpca/high_power_casing"),
                             GTCEu.id("block/multiblock/data_bank"))
@@ -243,6 +238,4 @@ public class UtilMachines {
         }
 
     }
-
-    public static void init() {}
 }
